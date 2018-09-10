@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>BQS Miramar - Red de Boyas LoRa Mesh & Panel de Gestion (2018)</title>
+    <!-- Bootstrap 4.1.3 & Leaflet 1.3.4 (2018) -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.4/dist/leaflet.css" />
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.3.4/dist/leaflet.js"></script>
+    <style>
+        body { background-color: #0b1319; color: #d0d7de; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
+        .navbar { background-color: #16222f; border-bottom: 2px solid #238636; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .card { background-color: #16222f; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
+        .card-header { background-color: #0f171f; border-bottom: 1px solid #30363d; font-weight: bold; color: #58a6ff; }
+        #map { height: 480px; width: 100%; border-radius: 6px; }
+        .nav-tabs .nav-link { color: #8b949e; border: none; font-weight: bold; }
+        .nav-tabs .nav-link.active { color: #58a6ff; background-color: #16222f; border-bottom: 3px solid #238636; }
+        .kpi-title { font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+        .kpi-val { font-size: 26px; font-weight: bold; }
+        .badge-bqs { background-color: #238636; color: #fff; font-weight: bold; padding: 4px 8px; border-radius: 4px; }
+        .table-custom { background-color: #16222f; color: #d0d7de; }
+        .table-custom th { border-color: #30363d; color: #58a6ff; }
+        .table-custom td { border-color: #30363d; vertical-align: middle; }
+        .terminal-box { background-color: #03070b; color: #39d353; font-family: 'Courier New', Courier, monospace; padding: 15px; border-radius: 6px; border: 1px solid #30363d; height: 260px; overflow-y: auto; font-size: 13px; }
+        .log-badge-rx { background-color: #1f6feb; color: #fff; }
+        .log-badge-relay { background-color: #d29922; color: #000; }
+        .log-badge-ack { background-color: #238636; color: #fff; }
+        .log-badge-flash { background-color: #a371f7; color: #fff; }
+        .log-badge-sys { background-color: #6e7681; color: #fff; }
+        .doc-box { background-color: #0f171f; border-left: 4px solid #238636; padding: 15px; border-radius: 4px; margin-bottom: 15px; }
+
+        /* Login Screen */
+        #login-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            background-color: #16222f;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        }
+    </style>
+</head>
+<body class="p-3">
+
+    <!-- =================================================================== -->
+    <!-- PANTALLA DE LOGIN (admin / admin) -->
+    <!-- =================================================================== -->
+    <div id="login-section">
+        <div class="login-card text-center">
+            <img src="img/bqs_miramar_logo.png" width="75" height="75" class="mb-3 rounded shadow" alt="BQS Miramar">
+            <h4 class="font-weight-bold" style="color: #2ea043; letter-spacing: 1px;">BQS MIRAMAR</h4>
+            <p class="small text-muted mb-4">Acceso al Sistema de Telemetría & Gestión de Boyas</p>
+
+            <div id="login-alert" class="alert alert-danger d-none py-2 small"></div>
+
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group text-left">
+                    <label class="small text-muted font-weight-bold">USUARIO</label>
+                    <input type="text" class="form-control bg-dark text-light border-secondary" id="login-username" value="admin" required autofocus>
+                </div>
+                <div class="form-group text-left">
+                    <label class="small text-muted font-weight-bold">CONTRASEÑA</label>
+                    <input type="password" class="form-control bg-dark text-light border-secondary" id="login-password" value="admin" required>
+                </div>
+                <button type="submit" class="btn btn-success btn-block font-weight-bold py-2 mt-4" style="background-color: #238636; border-color: #2ea043;">
+                    Iniciar Sesión
+                </button>
+            </form>
+            <div class="small text-muted mt-3">
+                Credenciales por defecto: <code>admin</code> / <code>admin</code>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- PANEL PRINCIPAL AUTENTICADO -->
+    <!-- =================================================================== -->
+    <div id="dashboard-section" class="d-none">
+        <!-- Navbar con Logo BQS Miramar -->
+        <nav class="navbar navbar-expand-lg navbar-dark mb-4 rounded">
+            <a class="navbar-brand font-weight-bold d-flex align-items-center" href="#">
+                <img src="img/bqs_miramar_logo.png" width="38" height="38" class="mr-2 rounded" alt="BQS Miramar">
+                <span style="color: #2ea043; font-size: 20px; letter-spacing: 1px;">BQS MIRAMAR</span>
+            </a>
+            <span class="navbar-text text-muted small ml-3 d-none d-md-inline">
+                Sistema Distribuido de Telemetría Marina &middot; Red LoRa Mesh Multi-Hop
+            </span>
+            <div class="ml-auto d-flex align-items-center">
+                <span class="badge badge-success px-3 py-2 mr-2">RED: 915 MHz OK</span>
+                <span class="badge badge-info px-3 py-2 mr-3">GATEWAYS: 2 ONLINE</span>
+                <span class="badge badge-secondary px-2 py-1 mr-3">👤 admin</span>
+                <button class="btn btn-sm btn-outline-danger" onclick="handleLogout()">Cerrar Sesión</button>
+            </div>
+        </nav>
+
+        <!-- Pestañas Principales -->
+        <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="tab-map-link" data-toggle="tab" href="#tab-map" role="tab">Mapa & Telemetría en Vivo</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="tab-abm-link" data-toggle="tab" href="#tab-abm" role="tab">ABM & Gestión de Boyas</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="tab-flash-link" data-toggle="tab" href="#tab-flash" role="tab">Estación de Flasheo de Firmware</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="tab-docs-link" data-toggle="tab" href="#tab-docs" role="tab">Documentación Técnica & Guía</a>
+            </li>
+        </ul>
+
+        <!-- Contenido de Pestañas -->
+        <div class="tab-content">
+            <!-- =================================================================== -->
+            <!-- PESTAÑA 1: MAPA Y TELEMETRÍA -->
+            <!-- =================================================================== -->
+            <div class="tab-pane fade show active" id="tab-map" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card p-3 text-center">
+                            <div class="kpi-title">Boyas Activas</div>
+                            <div class="kpi-val text-success" id="kpi-buoys">4</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 text-center">
+                            <div class="kpi-title">Temperatura de Agua</div>
+                            <div class="kpi-val text-info" id="kpi-water-temp">18.7 °C</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 text-center">
+                            <div class="kpi-title">Temperatura de Aire</div>
+                            <div class="kpi-val text-warning" id="kpi-air-temp">21.5 °C</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 text-center">
+                            <div class="kpi-title">Estado de Baterías</div>
+                            <div class="kpi-val text-primary" id="kpi-battery">82 %</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card p-2">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span>Mapa Georreferenciado del Sector Marino (Miramar / Mar del Plata)</span>
+                                <small class="text-muted">Leaflet 1.3.4 / OpenStreetMap</small>
+                            </div>
+                            <div id="map"></div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card p-3 text-center">
+                            <div class="card-header mb-2 text-left">Prototipo Físico Boya BQS</div>
+                            <img src="img/buoy_prototype_2018.jpg" class="img-fluid rounded border border-secondary shadow mb-2" style="max-height: 220px;" alt="Boya BQS">
+                            <div class="small text-muted text-left">
+                                <b>Hardware:</b> Arduino AVR, Semtech SX1276 (915 MHz), GPS u-blox, DS18B20 sumergible y DHT22.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de Telemetría -->
+                <div class="card p-3">
+                    <div class="card-header mb-2">Últimas Muestras de Telemetría Oceanográfica</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-custom text-center">
+                            <thead>
+                                <tr>
+                                    <th>Boya</th>
+                                    <th>Secuencia</th>
+                                    <th>Agua (°C)</th>
+                                    <th>Aire (°C)</th>
+                                    <th>Humedad</th>
+                                    <th>Batería</th>
+                                    <th>Saltos (Hops)</th>
+                                    <th>RSSI (dBm)</th>
+                                    <th>Gateway Receptor</th>
+                                    <th>Hora</th>
+                                </tr>
+                            </thead>
+                            <tbody id="telemetry-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- PESTAÑA 2: ABM Y GESTIÓN DE DISPOSITIVOS -->
+            <!-- =================================================================== -->
+            <div class="tab-pane fade" id="tab-abm" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-7">
+                        <div class="card p-3">
+                            <div class="card-header d-flex justify-content-between align-items-center mb-3">
+                                <span>Catálogo de Dispositivos (Boyas y Nodos BQS)</span>
+                                <button class="btn btn-sm btn-success" onclick="openNewBuoyModal()">+ Alta de Nueva Boya</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-custom text-center">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Hardware ID</th>
+                                            <th>Nombre / Sector</th>
+                                            <th>Tipo</th>
+                                            <th>Estado</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="abm-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel de Logs de Radio del Dispositivo Seleccionado -->
+                    <div class="col-lg-5">
+                        <div class="card p-3">
+                            <div class="card-header d-flex justify-content-between align-items-center mb-2">
+                                <span id="selected-buoy-logs-title">Logs de Radio &middot; Boya #17</span>
+                                <span class="badge badge-primary" id="selected-buoy-badge">BQS-NODE-17</span>
+                            </div>
+                            <div id="radio-logs-container" style="max-height: 420px; overflow-y: auto;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- PESTAÑA 3: ESTACIÓN DE FLASHEO DE DISPOSITIVOS -->
+            <!-- =================================================================== -->
+            <div class="tab-pane fade" id="tab-flash" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-5">
+                        <div class="card p-3">
+                            <div class="card-header mb-3">Configuración de Flasheo de Firmware</div>
+                            <div class="form-group">
+                                <label>Seleccionar Boya Objetivo:</label>
+                                <select class="form-control bg-dark text-light border-secondary" id="flash-select-node" onchange="updateFlashConfig()"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Puerto Serie Programador:</label>
+                                <input type="text" class="form-control bg-dark text-light border-secondary" id="flash-port" value="/dev/ttyUSB0">
+                            </div>
+                            <div class="form-group">
+                                <label>Frecuencia de Radio LoRa:</label>
+                                <input type="text" class="form-control bg-dark text-light border-secondary" value="915.0 MHz (Banda ISM Argentina / Región 2)" readonly>
+                            </div>
+                            <button class="btn btn-success btn-block font-weight-bold" onclick="executeFlashSimulation()">
+                                ⚡ Flashear Firmware en Dispositivo
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-7">
+                        <div class="card p-3">
+                            <div class="card-header mb-2">Consola de Flasheo & Comandos de Grabado (AVRDUDE)</div>
+                            <div class="small text-muted mb-2">
+                                <b>Comando generado:</b>
+                                <code class="text-warning" id="flash-cmd-preview">avrdude -v -p atmega328p -c arduino -P /dev/ttyUSB0 -b 115200 -D -U flash:w:buoy_node_17.hex:i</code>
+                            </div>
+                            <div class="terminal-box" id="flash-terminal">
+                                [AVRDUDE] Listo para grabar firmware.<br>
+                                Seleccione una boya y presione 'Flashear Firmware en Dispositivo'.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- =================================================================== -->
+            <!-- PESTAÑA 4: DOCUMENTACIÓN TÉCNICA Y GUÍA DE FUNCIONAMIENTO -->
+            <!-- =================================================================== -->
+            <div class="tab-pane fade" id="tab-docs" role="tabpanel">
+                <div class="card p-4">
+                    <div class="card-header mb-3 text-info font-weight-bold" style="font-size: 18px;">
+                        📘 Arquitectura y Funcionamiento Integral del Sistema BQS Miramar
+                    </div>
+
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="doc-box">
+                                <h6 class="text-success font-weight-bold">1. Red LoRa Mesh & Enrutamiento Multi-Hop</h6>
+                                <p class="small text-muted mb-2">
+                                    El sistema BQS supera las limitaciones de alcance de línea de vista directa en mar abierto mediante una <b>red en malla dinámica basada en RadioHead RHMesh (1.8x)</b> sobre 915 MHz:
+                                </p>
+                                <ul class="small text-muted pl-3">
+                                    <li><b>Saltos Múltiples (Relaying):</b> Cada boya transmite su propia telemetría y a la vez actúa como repetidor para boyas ubicadas mar adentro.</li>
+                                    <li><b>Tolerancia a Desconexión (Store-and-Forward):</b> Si una boya no encuentra ruta hacia la costa, retiene hasta 32 tramas en memoria local circular y las reenvía al reconectar.</li>
+                                    <li><b>Anti-Looping:</b> Tabla de paquetes vistos por <code>(source_node, sequence)</code> para evitar tormentas de retransmisión.</li>
+                                </ul>
+                            </div>
+
+                            <div class="doc-box">
+                                <h6 class="text-success font-weight-bold">2. Protocolo Binario Compacto (34 Bytes)</h6>
+                                <p class="small text-muted mb-2">
+                                    Optimizado para minimizar el tiempo al aire (<em>Time on Air</em>) y maximizar la autonomía energética:
+                                </p>
+                                <table class="table table-sm table-dark small text-center mb-0">
+                                    <thead>
+                                        <tr class="text-info">
+                                            <th>Campo</th>
+                                            <th>Bytes</th>
+                                            <th>Escala / Formato</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>Magic Header</td><td>2</td><td><code>0xB05A</code></td></tr>
+                                        <tr><td>Versión & Tipo</td><td>2</td><td>v1.0 (Telemetría / Alerta)</td></tr>
+                                        <tr><td>Node ID / Dest ID</td><td>2</td><td>Identificador único 1-254</td></tr>
+                                        <tr><td>Secuencia & Timestamp</td><td>8</td><td>uint32 (Unix Epoch)</td></tr>
+                                        <tr><td>Latitud / Longitud</td><td>8</td><td>int32 (grados × 10⁷)</td></tr>
+                                        <tr><td>Temp Agua / Aire / Hum</td><td>6</td><td>int16 (magnitud × 10¹)</td></tr>
+                                        <tr><td>Batería mV / Saltos / TTL</td><td>4</td><td>Nivel mV + Nibbles empaquetados</td></tr>
+                                        <tr><td>CRC-CCITT</td><td>2</td><td>Polinomio 0x1021</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-6">
+                            <div class="doc-box">
+                                <h6 class="text-success font-weight-bold">3. Sensores e Instrumentación Física</h6>
+                                <ul class="small text-muted pl-3 mb-0">
+                                    <li><b>Temp. Agua Superficial:</b> Sensor digital sumergible Dallas <b>DS18B20</b> montado en la quilla estabilizadora inferior (Pin D6, OneWire).</li>
+                                    <li><b>Temp. y Humedad de Aire:</b> Sensor digital <b>DHT22 / AM2302</b> en torre superior ventilada (Pin D5).</li>
+                                    <li><b>Posicionamiento Geodésico:</b> Receptor satelital <b>u-blox NEO-6M / M8N</b> con antena activa para geolocalización y sincronización UTC.</li>
+                                    <li><b>Monitor de Batería:</b> Divisor resistivo en Pin A0 con divisor $5.5454\times$ para acumuladores Li-ion 1S/2S. Alerta automática a $< 3500\text{ mV}$.</li>
+                                    <li><b>Transceptor de Radio:</b> Módulo <b>HopeRF RFM95W (Semtech SX1276)</b> con potencia de emisión a +20 dBm (100 mW).</li>
+                                </ul>
+                            </div>
+
+                            <div class="doc-box">
+                                <h6 class="text-success font-weight-bold">4. Estación Base Gateway & Servidor Central</h6>
+                                <ul class="small text-muted pl-3 mb-0">
+                                    <li><b>Gateway Raspberry Pi 3:</b> Receptor serie LoRa con decodificador binario, base de datos local SQLite <code>spool.db</code> (para no perder datos ante caídas de enlace celular 3G) y cliente uploader HTTP.</li>
+                                    <li><b>Balizas (Beacons):</b> Emisión periódica de tramas de sincronización para que las boyas elijan la ruta óptima por calidad de señal (RSSI).</li>
+                                    <li><b>Servidor REST:</b> Deduplicación estricta <code>UNIQUE(node_id, sequence)</code> para procesar tramas recibidas por múltiples gateways sin duplicar registros.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="doc-box mt-2">
+                        <h6 class="text-success font-weight-bold">5. Diagrama de Topología y Flujo de Datos</h6>
+                        <pre class="terminal-box mb-0" style="height: 160px; color: #58a6ff;">
+      [ BOYA 17 - Mar Abierto ]  (DS18B20 + DHT22 + GPS)
+                 │  LoRa 915 MHz (Salto 1)
+                 ▼
+      [ BOYA 12 - Punta Hermengo ] (Relay / Multi-Hop)
+                 │  LoRa 915 MHz (Salto 2)
+                 ▼
+      [ BOYA 04 - Escollera Norte ] (Relay Cercano)
+                 │  LoRa 915 MHz (Salto 3)
+                 ▼
+     ┌────────────────────────────┐
+     │  GATEWAY 01 - Miramar      │  (Raspberry Pi 3 + Spool SQLite)
+     └─────────────┬──────────────┘
+                   │  Internet / Red Celular (POST /api/v1/telemetry)
+                   ▼
+     ┌────────────────────────────┐
+     │  BQS SERVER & DASHBOARD    │  (Leaflet Map + Base de Datos + ABM)
+     └────────────────────────────┘</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Alta / Edición de Boya -->
+    <div class="modal fade" id="buoyModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content bg-dark text-light border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-info" id="buoyModalTitle">Alta de Boya BQS</h5>
+                    <button type="button" class="close text-light" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="modal-is-edit" value="0">
+                    <div class="form-group">
+                        <label>ID del Nodo (1-254):</label>
+                        <input type="number" class="form-control bg-secondary text-light" id="modal-node-id" value="20" min="1" max="254">
+                    </div>
+                    <div class="form-group">
+                        <label>Nombre / Ubicación:</label>
+                        <input type="text" class="form-control bg-secondary text-light" id="modal-node-name" value="Boya Costera 20 - Playa Centro">
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo de Boya:</label>
+                        <select class="form-control bg-secondary text-light" id="modal-node-type">
+                            <option value="BUOY_OCEAN">Boya Oceánica (Mar Abierto)</option>
+                            <option value="BUOY_COASTAL">Boya Costera (Rompiente)</option>
+                            <option value="BUOY_LAKE">Boya Lago / Embalse</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Umbral Batería Mínima (mV):</label>
+                        <input type="number" class="form-control bg-secondary text-light" id="modal-battery-min" value="3500">
+                    </div>
+                    <div class="form-group">
+                        <label>Intervalo de Transmisión (segundos):</label>
+                        <input type="number" class="form-control bg-secondary text-light" id="modal-interval" value="60">
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" onclick="saveBuoyModal()">Guardar Boya</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var map = null;
+        var currentSelectedNodeId = 17;
+        var markers = [];
+
+        function checkAuth() {
+            var token = sessionStorage.getItem('bqs_token');
+            if (token) {
+                document.getElementById('login-section').classList.add('d-none');
+                document.getElementById('dashboard-section').classList.remove('d-none');
+                initMapIfNeeded();
+                loadAllData();
+            } else {
+                document.getElementById('login-section').classList.remove('d-none');
+                document.getElementById('dashboard-section').classList.add('d-none');
+            }
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            var u = document.getElementById('login-username').value;
+            var p = document.getElementById('login-password').value;
+
+            fetch('/api/v1/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            })
+            .then(r => r.json().then(data => ({ status: r.status, body: data })))
+            .then(res => {
+                if (res.status === 200 && res.body.token) {
+                    sessionStorage.setItem('bqs_token', res.body.token);
+                    document.getElementById('login-alert').classList.add('d-none');
+                    checkAuth();
+                } else {
+                    var alertEl = document.getElementById('login-alert');
+                    alertEl.innerText = res.body.message || "Credenciales inválidas";
+                    alertEl.classList.remove('d-none');
+                }
+            })
+            .catch(() => {
+                var alertEl = document.getElementById('login-alert');
+                alertEl.innerText = "Error de comunicación con el servidor";
+                alertEl.classList.remove('d-none');
+            });
+        }
+
+        function handleLogout() {
+            sessionStorage.removeItem('bqs_token');
+            checkAuth();
+        }
+
+        function initMapIfNeeded() {
+            if (!map) {
+                map = L.map('map').setView([-38.2728, -57.8306], 12);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors | BQS Miramar 2018'
+                }).addTo(map);
+            }
+        }
+
+        function loadAllData() {
+            loadGateways();
+            loadTelemetry();
+            loadNodesAbm();
+            loadNodeLogs(currentSelectedNodeId);
+        }
+
+        function loadGateways() {
+            fetch('/api/v1/gateways')
+                .then(r => r.json())
+                .then(gateways => {
+                    gateways.forEach(gw => {
+                        var gwIcon = L.divIcon({
+                            className: 'custom-gw-icon',
+                            html: '<div style="background-color:#e63946; color:#fff; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:11px; border:1px solid #fff;">' + gw.hardware_id + '</div>',
+                            iconSize: [80, 24]
+                        });
+                        L.marker([gw.latitude, gw.longitude], { icon: gwIcon })
+                            .addTo(map)
+                            .bindPopup(`<b>${gw.name}</b><br>ID: ${gw.hardware_id}<br>Estado: ${gw.status}`);
+                    });
+                });
+        }
+
+        function loadTelemetry() {
+            fetch('/api/v1/telemetry')
+                .then(r => r.json())
+                .then(telemetryList => {
+                    markers.forEach(m => map.removeLayer(m));
+                    markers = [];
+                    var tbody = '';
+                    var totalWaterT = 0, totalAirT = 0, totalBatt = 0;
+
+                    telemetryList.forEach(t => {
+                        totalWaterT += t.temp_water;
+                        totalAirT += t.temp_air;
+                        totalBatt += t.battery_percent;
+
+                        var buoyMarker = L.circleMarker([t.latitude, t.longitude], {
+                            radius: 8,
+                            fillColor: '#238636',
+                            color: '#ffffff',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.9
+                        }).addTo(map);
+
+                        buoyMarker.bindPopup(`
+                            <div style="color:#000;">
+                                <h6 style="margin-bottom:4px;"><b>Boya #${t.node_id}</b></h6>
+                                <div><b>Temp. Agua:</b> ${t.temp_water} °C</div>
+                                <div><b>Temp. Aire:</b> ${t.temp_air} °C</div>
+                                <div><b>Batería:</b> ${t.battery_percent}% (${t.battery_mv} mV)</div>
+                                <div><b>Saltos LoRa:</b> ${t.hops}</div>
+                                <div><b>Gateway:</b> ${t.gateway_id}</div>
+                            </div>
+                        `);
+                        markers.push(buoyMarker);
+
+                        tbody += `
+                            <tr>
+                                <td><span class="badge badge-bqs">Boya #${t.node_id}</span></td>
+                                <td>#${t.sequence}</td>
+                                <td class="text-info font-weight-bold">${t.temp_water} °C</td>
+                                <td class="text-warning">${t.temp_air} °C</td>
+                                <td>${t.humidity} %</td>
+                                <td><span class="badge badge-success">${t.battery_percent}%</span></td>
+                                <td><span class="badge badge-secondary">${t.hops} saltos</span></td>
+                                <td>${t.rssi} dBm</td>
+                                <td><code>${t.gateway_id}</code></td>
+                                <td class="text-muted small">${new Date(t.timestamp * 1000).toLocaleTimeString()}</td>
+                            </tr>
+                        `;
+                    });
+
+                    document.getElementById('telemetry-table-body').innerHTML = tbody;
+                    if (telemetryList.length > 0) {
+                        document.getElementById('kpi-buoys').innerText = telemetryList.length;
+                        document.getElementById('kpi-water-temp').innerText = (totalWaterT / telemetryList.length).toFixed(1) + ' °C';
+                        document.getElementById('kpi-air-temp').innerText = (totalAirT / telemetryList.length).toFixed(1) + ' °C';
+                        document.getElementById('kpi-battery').innerText = Math.round(totalBatt / telemetryList.length) + ' %';
+                    }
+                });
+        }
+
+        function loadNodesAbm() {
+            fetch('/api/v1/nodes')
+                .then(r => r.json())
+                .then(nodes => {
+                    var tbody = '';
+                    var selectHtml = '';
+
+                    nodes.forEach(n => {
+                        selectHtml += `<option value="${n.id}">Boya #${n.id} - ${n.name}</option>`;
+                        tbody += `
+                            <tr onclick="selectBuoyForLogs(${n.id}, '${n.name}', '${n.hardware_id}')" style="cursor: pointer;">
+                                <td><b>#${n.id}</b></td>
+                                <td><code>${n.hardware_id}</code></td>
+                                <td class="text-left">${n.name}</td>
+                                <td><span class="badge badge-secondary">${n.type}</span></td>
+                                <td><span class="badge badge-success">${n.status}</span></td>
+                                <td>
+                                    <button class="btn btn-xs btn-outline-info py-0 px-2" onclick="event.stopPropagation(); editBuoyModal(${n.id}, '${n.name}', '${n.type}', ${n.battery_min_mv}, ${n.report_interval_sec})">Editar</button>
+                                    <button class="btn btn-xs btn-outline-danger py-0 px-2 ml-1" onclick="event.stopPropagation(); deleteBuoy(${n.id})">Baja</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    document.getElementById('abm-table-body').innerHTML = tbody;
+                    document.getElementById('flash-select-node').innerHTML = selectHtml;
+                });
+        }
+
+        function selectBuoyForLogs(nodeId, name, hwId) {
+            currentSelectedNodeId = nodeId;
+            document.getElementById('selected-buoy-logs-title').innerText = `Logs de Radio · ${name}`;
+            document.getElementById('selected-buoy-badge').innerText = hwId;
+            loadNodeLogs(nodeId);
+        }
+
+        function loadNodeLogs(nodeId) {
+            fetch(`/api/v1/nodes/${nodeId}/logs`)
+                .then(r => r.json())
+                .then(logs => {
+                    var html = '';
+                    if (logs.length === 0) {
+                        html = '<div class="text-muted small p-3 text-center">No hay registros de radio para este nodo.</div>';
+                    } else {
+                        logs.forEach(l => {
+                            var badgeClass = l.log_type === 'RX' ? 'log-badge-rx' : (l.log_type === 'RELAY' ? 'log-badge-relay' : (l.log_type === 'ACK' ? 'log-badge-ack' : (l.log_type === 'FLASH' ? 'log-badge-flash' : 'log-badge-sys')));
+                            html += `
+                                <div class="border-bottom border-secondary py-2 small">
+                                    <span class="badge ${badgeClass} mr-1">${l.log_type}</span>
+                                    <span class="text-muted mr-2">${new Date(l.timestamp * 1000).toLocaleTimeString()}</span>
+                                    <span>${l.message}</span>
+                                    ${l.hops > 0 ? `<span class="badge badge-dark ml-1">${l.hops} hops</span>` : ''}
+                                    ${l.rssi ? `<span class="text-info ml-1">${l.rssi} dBm</span>` : ''}
+                                </div>
+                            `;
+                        });
+                    }
+                    document.getElementById('radio-logs-container').innerHTML = html;
+                });
+        }
+
+        function openNewBuoyModal() {
+            document.getElementById('modal-is-edit').value = "0";
+            document.getElementById('modal-node-id').readOnly = false;
+            document.getElementById('buoyModalTitle').innerText = "Alta de Nueva Boya BQS";
+            $('#buoyModal').modal('show');
+        }
+
+        function editBuoyModal(id, name, type, batMin, interval) {
+            document.getElementById('modal-is-edit').value = "1";
+            document.getElementById('modal-node-id').value = id;
+            document.getElementById('modal-node-id').readOnly = true;
+            document.getElementById('modal-node-name').value = name;
+            document.getElementById('modal-node-type').value = type;
+            document.getElementById('modal-battery-min').value = batMin;
+            document.getElementById('modal-interval').value = interval;
+            document.getElementById('buoyModalTitle').innerText = `Modificar Boya #${id}`;
+            $('#buoyModal').modal('show');
+        }
+
+        function saveBuoyModal() {
+            var isEdit = document.getElementById('modal-is-edit').value === "1";
+            var nodeId = parseInt(document.getElementById('modal-node-id').value);
+            var payload = {
+                id: nodeId,
+                name: document.getElementById('modal-node-name').value,
+                type: document.getElementById('modal-node-type').value,
+                battery_min_mv: parseInt(document.getElementById('modal-battery-min').value),
+                report_interval_sec: parseInt(document.getElementById('modal-interval').value)
+            };
+
+            var url = isEdit ? `/api/v1/nodes/${nodeId}` : '/api/v1/nodes';
+            var method = isEdit ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(() => {
+                $('#buoyModal').modal('hide');
+                loadAllData();
+            });
+        }
+
+        function deleteBuoy(nodeId) {
+            if (confirm(`¿Dar de baja y eliminar la Boya #${nodeId}?`)) {
+                fetch(`/api/v1/nodes/${nodeId}`, { method: 'DELETE' }).then(() => loadAllData());
+            }
+        }
+
+        function updateFlashConfig() {
+            var nodeId = document.getElementById('flash-select-node').value;
+            var port = document.getElementById('flash-port').value;
+            document.getElementById('flash-cmd-preview').innerText = `avrdude -v -p atmega328p -c arduino -P ${port} -b 115200 -D -U flash:w:buoy_node_${nodeId}.hex:i`;
+        }
+
+        function executeFlashSimulation() {
+            var nodeId = document.getElementById('flash-select-node').value;
+            var term = document.getElementById('flash-terminal');
+            term.innerHTML = `[AVRDUDE] Conectando a programador en /dev/ttyUSB0 (115200 bps)...<br>`;
+
+            setTimeout(() => {
+                term.innerHTML += `[AVRDUDE] Dispositivo detectado: ATmega328P (Signature: 0x1e950f)<br>`;
+                term.innerHTML += `[AVRDUDE] Grabando BQS_NODE_ID=${nodeId} (Frecuencia: 915 MHz)...<br>`;
+            }, 600);
+
+            setTimeout(() => {
+                term.innerHTML += `[AVRDUDE] Escribiendo memoria Flash [####################] 100%<br>`;
+                term.innerHTML += `[AVRDUDE] Verificación de bytes grabados OK. 32768 bytes verificados.<br>`;
+                term.innerHTML += `<span style="color:#2ea043; font-weight:bold;">[EXITO] Firmware de Boya #${nodeId} instalado correctamente.</span><br>`;
+
+                fetch(`/api/v1/nodes/${nodeId}/flash-simulate`, { method: 'POST' })
+                    .then(() => loadNodeLogs(nodeId));
+            }, 1500);
+        }
+
+        setInterval(loadTelemetry, 4000);
+        checkAuth();
+    </script>
+</body>
+</html>
